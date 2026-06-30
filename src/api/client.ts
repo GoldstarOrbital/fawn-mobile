@@ -34,6 +34,17 @@ export type LoginResponse = {
   token_type: string;
 };
 
+export type DashboardResponse = {
+  account_active: boolean;
+  application_pending: boolean;
+  balance: null | {
+    available?: number;
+    current?: number;
+    currency?: string;
+  };
+  transactions: unknown[];
+};
+
 export function login(email: string, password: string) {
   return apiFetch<LoginResponse>("/auth/login", {
     method: "POST",
@@ -46,4 +57,8 @@ export function register(payload: Record<string, unknown>) {
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export function getDashboard(token: string) {
+  return apiFetch<DashboardResponse>("/accounts/dashboard", {}, token);
 }
