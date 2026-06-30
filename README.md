@@ -9,7 +9,10 @@ Expo React Native starter for the FAWN iOS path.
 - Welcome, login, signup, dashboard, campus, and settings screens
 - Railway API client pointed at `https://web-production-13d5b.up.railway.app`
 - Auth provider using `expo-secure-store` for returned JWTs
-- Signup fields for email, password, school, location, and military status
+- Signup fields aligned with the current backend KYC contract: email, password, legal name, phone, DOB, SSN, address, school, location, and military status
+- Auth bootstrapping from SecureStore on app start
+- Dashboard refresh wired to `/accounts/dashboard`
+- Settings logout wired to the auth provider
 
 ## Run Locally
 
@@ -27,7 +30,7 @@ npx expo start
 
 ## Next Build Steps
 
-- Confirm backend signup accepts `school`, `location`, and `military_status`.
 - Add a mobile bootstrap endpoint for user, account, deals, and feature flags.
-- Replace dashboard/card/P2P placeholders with real authenticated queries.
+- Replace card/P2P placeholders with real authenticated queries.
+- Add a compliant production KYC handoff if FAWN moves from direct SSN collection to Unit hosted onboarding.
 - Configure EAS, Apple Developer credentials, app icon, privacy labels, and TestFlight metadata.
