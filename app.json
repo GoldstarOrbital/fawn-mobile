@@ -1,0 +1,18 @@
+﻿{
+  "expo": {
+    "name": "FAWN",
+    "slug": "fawn-mobile",
+    "scheme": "fawn",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fawn.mobile"
+    },
+    "extra": {
+      "apiBaseUrl": "https://web-production-13d5b.up.railway.app"
+    },
+    "plugins": ["expo-router", "expo-secure-store"]
+  }
+}
