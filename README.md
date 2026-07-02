@@ -13,6 +13,10 @@ Expo React Native starter for the FAWN iOS path.
 - Auth bootstrapping from SecureStore on app start
 - Dashboard refresh wired to `/accounts/dashboard`
 - Settings logout wired to the auth provider
+- Real P2P Send tab: handle lookup, live send-limit headroom (`GET /p2p/limits`),
+  idempotency-keyed create, step-up/scam-warning confirm screen, instant
+  Book Payment settlement on success
+- `eas.json` build profiles (development/preview/production)
 
 ## Run Locally
 
@@ -31,6 +35,28 @@ npx expo start
 ## Next Build Steps
 
 - Add a mobile bootstrap endpoint for user, account, deals, and feature flags.
-- Replace card/P2P placeholders with real authenticated queries.
+- Replace the card placeholder with real authenticated queries (P2P Send is done).
 - Add a compliant production KYC handoff if FAWN moves from direct SSN collection to Unit hosted onboarding.
-- Configure EAS, Apple Developer credentials, app icon, privacy labels, and TestFlight metadata.
+- App icon, splash screen, and privacy labels.
+
+## iOS Launch Path (requires Alex — cannot be automated from this machine)
+
+Everything below needs an Apple Developer account ($99/yr) and interactive
+logins, so it's a human checklist, in order:
+
+1. Enroll at developer.apple.com (personal or org — org needs a DUNS number).
+2. `npm i -g eas-cli && eas login` (create a free Expo account if needed).
+3. `eas build --platform ios --profile preview` — EAS builds in Expo's cloud,
+   so no Mac is required; it walks you through generating Apple certs the
+   first time.
+4. Install the preview build on your iPhone via the QR/link EAS prints.
+5. When it looks right: `eas build --platform ios --profile production`
+   then `eas submit --platform ios` to push to TestFlight.
+6. App Store listing needs: privacy policy URL (host on the landing site),
+   App Privacy questionnaire (collects: email, name, phone, DOB, SSN for
+   KYC — be accurate, Apple rejects mismatches), screenshots, and a
+   financial-app review note explaining the Unit sandbox status honestly.
+
+Note: App Review is unlikely to approve a banking app that's still on a
+sandbox banking backend for public release. TestFlight (internal testing)
+is the realistic target until Unit production approval lands.
