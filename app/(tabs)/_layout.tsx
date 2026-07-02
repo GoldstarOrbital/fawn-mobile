@@ -11,6 +11,7 @@ export default function TabsLayout() {
       tabBarInactiveTintColor: tokens.color.muted
     }}>
       <Tabs.Screen name="dashboard" options={{ title: "Dashboard" }} />
+      <Tabs.Screen name="send" options={{ title: "Send" }} />
       <Tabs.Screen name="campus" options={{ title: "Campus" }} />
       <Tabs.Screen name="settings" options={{ title: "Settings" }} />
     </Tabs>
