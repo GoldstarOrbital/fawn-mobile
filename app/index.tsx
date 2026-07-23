@@ -7,11 +7,11 @@ export default function WelcomeScreen() {
   return (
     <Screen>
       <Text style={styles.kicker}>FAWN mobile</Text>
-      <Title>Banking that feels built for your campus, city, and path.</Title>
-      <Body>Create an account, set your school and location, and bring the campus savings layer with you.</Body>
+      <Title>Money that feels built for your campus, city, and path.</Title>
+      <Body>Instant USDC payments and campus savings, in your pocket. Create an account in about a minute — no SSN, no credit check.</Body>
       <Panel>
-        <Text style={styles.panelTitle}>Launch focus</Text>
-        <Text style={styles.panelText}>Signup, login, dashboard, campus deals, card controls, and P2P become the first native tabs.</Text>
+        <Text style={styles.panelTitle}>What&rsquo;s here today</Text>
+        <Text style={styles.panelText}>Sign up, log in, see your live USDC balance and activity, and send money to any FAWN @username or wallet address — all against the live FAWN backend.</Text>
       </Panel>
       <View style={styles.actions}>
         <Link href="/signup" asChild><Pressable style={styles.primary}><Text style={styles.primaryText}>Create account</Text></Pressable></Link>

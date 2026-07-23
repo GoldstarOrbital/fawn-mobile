@@ -1,6 +1,6 @@
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
-import { login as loginRequest, register as registerRequest } from "@/api/client";
+import { login as loginRequest, register as registerRequest, updateMe, type RegisterPayload } from "@/api/client";
 
 const TOKEN_KEY = "fawn_access_token";
 
@@ -8,7 +8,7 @@ type AuthContextValue = {
   token: string | null;
   isBootstrapping: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (payload: Record<string, unknown>) => Promise<void>;
+  signUp: (payload: RegisterPayload, school?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -40,10 +40,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       await SecureStore.setItemAsync(TOKEN_KEY, result.access_token);
       setToken(result.access_token);
     },
-    async signUp(payload) {
+    async signUp(payload, school) {
       const result = await registerRequest(payload);
       await SecureStore.setItemAsync(TOKEN_KEY, result.access_token);
       setToken(result.access_token);
+      if (school) {
+        // Profile enrichment is best-effort — signup already succeeded.
+        try { await updateMe({ school }, result.access_token); } catch {}
+      }
     },
     async signOut() {
       await SecureStore.deleteItemAsync(TOKEN_KEY);

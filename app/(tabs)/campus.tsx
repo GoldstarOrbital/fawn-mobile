@@ -15,7 +15,7 @@ export default function CampusScreen() {
   return (
     <Screen>
       <Title>Campus savings.</Title>
-      <Body>School colors, location, and student context become the deal layer.</Body>
+      <Body>A preview of the campus deal layer — the live version (with real per-school deals) is in the FAWN web app today.</Body>
       <View style={styles.tabs}>{schools.map((item) => (
         <Pressable key={item.name} style={[styles.tab, school.name === item.name && { borderColor: item.color }]} onPress={() => setSchool(item)}>
           <Text style={styles.tabText}>{item.name}</Text>

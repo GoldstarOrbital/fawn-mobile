@@ -1,22 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput } from "react-native";
 import { Body, Panel, Screen, Title } from "@/components/Primitives";
 import { useAuth } from "@/auth/AuthProvider";
+import { getWalletBalance } from "@/api/client";
 import {
-  confirmTransfer,
-  createSend,
-  getLimits,
-  lookupHandle,
-  type P2PLimits,
-  type P2PTransfer
+  checkUsername,
+  classifyRecipient,
+  feeCentsFor,
+  sendUnified,
+  type TransferResponse
 } from "@/api/p2p";
 import { tokens } from "@/theme/tokens";
-
-function newIdempotencyKey() {
-  // crypto.randomUUID isn't guaranteed on every RN runtime.
-  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
-  return `send-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-}
 
 function formatMoney(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -31,37 +25,45 @@ type Step = "form" | "confirm" | "done";
 export default function SendScreen() {
   const { token } = useAuth();
   const [step, setStep] = useState<Step>("form");
-  const [handle, setHandle] = useState("");
+  const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+  const [memo, setMemo] = useState("");
   const [lookupText, setLookupText] = useState("");
-  const [limits, setLimits] = useState<P2PLimits | null>(null);
-  const [pending, setPending] = useState<P2PTransfer | null>(null);
+  const [balanceCents, setBalanceCents] = useState<number | null>(null);
+  const [result, setResult] = useState<TransferResponse | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const idempotencyKey = useRef<string | null>(null);
   const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    getLimits(token)
-      .then(setLimits)
-      .catch(() => setLimits(null)); // advisory only — older backend just hides the hint
-  }, [token]);
+    getWalletBalance(token)
+      .then((b) => setBalanceCents(b.usdc_balance_cents))
+      .catch(() => setBalanceCents(null)); // advisory only — the backend re-checks on send
+  }, [token, step]);
 
-  const onHandleChange = useCallback(
+  const onRecipientChange = useCallback(
     (value: string) => {
-      setHandle(value);
+      setRecipient(value);
       setLookupText("");
       if (lookupTimer.current) clearTimeout(lookupTimer.current);
-      const cleaned = value.replace(/^@/, "").toLowerCase();
-      if (!token || !/^[a-z0-9_]{3,20}$/.test(cleaned)) return;
+      if (!token) return;
+      const { kind, normalized } = classifyRecipient(value);
+      if (kind === "address") {
+        setLookupText("External wallet — $0.50 fee, settles on-chain.");
+        return;
+      }
+      if (kind !== "username") return;
+      const handle = normalized.slice(1);
       lookupTimer.current = setTimeout(async () => {
         try {
-          const result = await lookupHandle(`@${cleaned}`, token);
-          setLookupText(
-            result.claimable ? "No FAWN user has this handle yet." : `Sending to ${result.display_name || "@" + result.handle}`
-          );
+          const check = await checkUsername(handle, token);
+          // available=false + "Username taken" means a FAWN user owns it → sendable
+          if (!check.available && /taken/i.test(check.reason || "")) {
+            setLookupText(`Sending to ${normalized} — $0.01 fee, instant.`);
+          } else if (check.available) {
+            setLookupText(`No FAWN user has ${normalized} yet — double-check the spelling.`);
+          }
         } catch {
           setLookupText("");
         }
@@ -70,38 +72,35 @@ export default function SendScreen() {
     [token]
   );
 
-  async function onContinue() {
-    if (!token) return;
-    setError("");
-    const cleaned = handle.replace(/^@/, "").toLowerCase();
+  function parsedCents() {
     const cents = Math.round(parseFloat(amount) * 100);
-    if (!/^[a-z0-9_]{3,20}$/.test(cleaned)) return setError("Enter a valid @handle.");
-    if (!Number.isFinite(cents) || cents <= 0) return setError("Enter a valid amount.");
+    return Number.isFinite(cents) ? cents : NaN;
+  }
 
-    if (!idempotencyKey.current) idempotencyKey.current = newIdempotencyKey();
-    setBusy(true);
-    try {
-      const transfer = await createSend(
-        { to_handle: cleaned, amount_cents: cents, note: note.trim() || undefined, idempotency_key: idempotencyKey.current },
-        token
-      );
-      setPending(transfer);
-      setStep("confirm");
-    } catch (err) {
-      idempotencyKey.current = null;
-      setError(errMessage(err, "Could not create the transfer."));
-    } finally {
-      setBusy(false);
+  function onContinue() {
+    setError("");
+    const { kind } = classifyRecipient(recipient);
+    const cents = parsedCents();
+    if (kind === "invalid") return setError("Enter a valid @username or 0x… wallet address.");
+    if (!Number.isFinite(cents) || cents <= 0) return setError("Enter a valid amount.");
+    const totalCents = cents + feeCentsFor(kind);
+    if (balanceCents !== null && totalCents > balanceCents) {
+      return setError(`That's more than your balance (${formatMoney(balanceCents)} available, including the fee).`);
     }
+    setStep("confirm");
   }
 
   async function onConfirm() {
-    if (!token || !pending) return;
+    if (!token) return;
     setError("");
     setBusy(true);
     try {
-      const done = await confirmTransfer(pending.id, true, token);
-      setPending(done);
+      const { normalized } = classifyRecipient(recipient);
+      const done = await sendUnified(
+        { recipient: normalized, amount_cents: parsedCents(), memo: memo.trim() || undefined },
+        token
+      );
+      setResult(done);
       setStep("done");
     } catch (err) {
       setError(errMessage(err, "Could not complete the transfer."));
@@ -112,60 +111,69 @@ export default function SendScreen() {
 
   function reset() {
     setStep("form");
-    setHandle("");
+    setRecipient("");
     setAmount("");
-    setNote("");
+    setMemo("");
     setLookupText("");
-    setPending(null);
+    setResult(null);
     setError("");
-    idempotencyKey.current = null;
-    if (token) getLimits(token).then(setLimits).catch(() => {});
   }
 
   if (!token) {
     return (
       <Screen>
         <Title>Send money</Title>
-        <Body>Log in to send money to other FAWN users.</Body>
+        <Body>Log in to send USDC to other FAWN users or any wallet address.</Body>
       </Screen>
     );
   }
 
-  if (step === "confirm" && pending) {
-    const needsStepUp = pending.status === "requires_step_up" || pending.step_up_required;
+  if (step === "confirm") {
+    const { kind, normalized } = classifyRecipient(recipient);
+    const cents = parsedCents();
+    const fee = feeCentsFor(kind);
     return (
       <Screen>
         <Title>Confirm your payment</Title>
         <Panel>
-          <Text style={styles.confirmAmount}>{formatMoney(pending.amount_cents)}</Text>
-          <Body>Sending to @{pending.counterparty_handle}</Body>
-          {note.trim() ? <Text style={styles.note}>&ldquo;{note.trim()}&rdquo;</Text> : null}
-          {pending.warning ? <Text style={styles.warning}>&#9888; {pending.warning}</Text> : null}
-          {needsStepUp && !pending.warning ? (
-            <Text style={styles.stepup}>&#9888; First-time send to this recipient. Double-check the handle — this can&rsquo;t be undone.</Text>
-          ) : null}
-          <Text style={styles.irreversible}>This can&rsquo;t be undone once confirmed.</Text>
+          <Text style={styles.confirmAmount}>{formatMoney(cents)}</Text>
+          <Body>Sending to {normalized}</Body>
+          {memo.trim() ? <Text style={styles.note}>&ldquo;{memo.trim()}&rdquo;</Text> : null}
+          <Text style={styles.feeLine}>Fee {formatMoney(fee)} · total {formatMoney(cents + fee)}</Text>
+          {kind === "address" ? (
+            <Text style={styles.stepup}>&#9888; External wallet send. Double-check the address — on-chain transfers can&rsquo;t be undone.</Text>
+          ) : (
+            <Text style={styles.irreversible}>This can&rsquo;t be undone once confirmed.</Text>
+          )}
         </Panel>
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable style={styles.primary} onPress={onConfirm} disabled={busy}>
-          {busy ? <ActivityIndicator color={tokens.color.bg} /> : <Text style={styles.primaryText}>Confirm &amp; send {formatMoney(pending.amount_cents)}</Text>}
+        <Pressable style={styles.primary} onPress={onConfirm} disabled={busy} accessibilityRole="button">
+          {busy ? <ActivityIndicator color={tokens.color.bg} /> : <Text style={styles.primaryText}>Confirm &amp; send {formatMoney(cents)}</Text>}
         </Pressable>
-        <Pressable style={styles.secondary} onPress={reset} disabled={busy}>
-          <Text style={styles.secondaryText}>Cancel</Text>
+        <Pressable style={styles.secondary} onPress={() => setStep("form")} disabled={busy} accessibilityRole="button">
+          <Text style={styles.secondaryText}>Back</Text>
         </Pressable>
       </Screen>
     );
   }
 
-  if (step === "done" && pending) {
+  if (step === "done" && result) {
+    const settledInReview = /review|held|pending_review/i.test(result.status);
     return (
       <Screen>
-        <Title>Sent.</Title>
+        <Title>{settledInReview ? "Almost there." : "Sent."}</Title>
         <Panel>
-          <Text style={styles.confirmAmount}>{formatMoney(pending.amount_cents)}</Text>
-          <Body>@{pending.counterparty_handle} has the money — Book Payments settle instantly.</Body>
+          <Text style={styles.confirmAmount}>{formatMoney(Math.round(result.amount * 100))}</Text>
+          <Body>
+            {settledInReview
+              ? "This send is held for a quick security review — it'll go out automatically once cleared."
+              : `Delivered. Fee ${formatMoney(Math.round(result.fee * 100))} — status: ${result.status}.`}
+          </Body>
+          {result.tx_hash && !result.tx_hash.startsWith("balance-fallback") ? (
+            <Text style={styles.txHash}>tx {result.tx_hash.slice(0, 10)}…{result.tx_hash.slice(-6)}{result.chain ? ` on ${result.chain}` : ""}</Text>
+          ) : null}
         </Panel>
-        <Pressable style={styles.primary} onPress={reset}>
+        <Pressable style={styles.primary} onPress={reset} accessibilityRole="button">
           <Text style={styles.primaryText}>Send another</Text>
         </Pressable>
       </Screen>
@@ -176,15 +184,16 @@ export default function SendScreen() {
     <Screen>
       <Title>Send money</Title>
       <Panel>
-        <Text style={styles.label}>To @handle</Text>
+        <Text style={styles.label}>To @username or 0x… address</Text>
         <TextInput
           style={styles.input}
-          value={handle}
-          onChangeText={onHandleChange}
-          placeholder="friendhandle"
+          value={recipient}
+          onChangeText={onRecipientChange}
+          placeholder="@friendhandle or 0x…"
           placeholderTextColor={tokens.color.muted}
           autoCapitalize="none"
           autoCorrect={false}
+          accessibilityLabel="Recipient username or wallet address"
         />
         {lookupText ? <Text style={styles.lookup}>{lookupText}</Text> : null}
         <Text style={styles.label}>Amount</Text>
@@ -195,27 +204,25 @@ export default function SendScreen() {
           placeholder="0.00"
           placeholderTextColor={tokens.color.muted}
           keyboardType="decimal-pad"
+          accessibilityLabel="Amount in dollars"
         />
-        {limits ? (
-          <Text style={styles.limitHint}>
-            {limits.max_send_cents > 0
-              ? `You can send up to ${formatMoney(limits.max_send_cents)} right now.`
-              : "You've reached your sending limit for now — it resets on a rolling 24-hour/7-day window."}
-          </Text>
+        {balanceCents !== null ? (
+          <Text style={styles.limitHint}>{formatMoney(balanceCents)} available</Text>
         ) : null}
-        <Text style={styles.label}>Note (optional)</Text>
+        <Text style={styles.label}>Memo (optional)</Text>
         <TextInput
           style={styles.input}
-          value={note}
-          onChangeText={setNote}
+          value={memo}
+          onChangeText={setMemo}
           placeholder="e.g. dinner last night"
           placeholderTextColor={tokens.color.muted}
           maxLength={140}
+          accessibilityLabel="Optional memo"
         />
       </Panel>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable style={styles.primary} onPress={onContinue} disabled={busy}>
-        {busy ? <ActivityIndicator color={tokens.color.bg} /> : <Text style={styles.primaryText}>Continue</Text>}
+      <Pressable style={styles.primary} onPress={onContinue} disabled={busy} accessibilityRole="button">
+        <Text style={styles.primaryText}>Continue</Text>
       </Pressable>
     </Screen>
   );
@@ -236,9 +243,10 @@ const styles = StyleSheet.create({
   limitHint: { color: tokens.color.muted, fontSize: 12 },
   confirmAmount: { color: tokens.color.text, fontSize: 40, fontWeight: "900", textAlign: "center" },
   note: { color: tokens.color.text, fontSize: 15, fontStyle: "italic", textAlign: "center" },
-  warning: { color: tokens.color.danger, fontSize: 13, fontWeight: "700" },
+  feeLine: { color: tokens.color.muted, fontSize: 13, textAlign: "center" },
   stepup: { color: "#ffb400", fontSize: 13, fontWeight: "700" },
   irreversible: { color: tokens.color.muted, fontSize: 12, textAlign: "center" },
+  txHash: { color: tokens.color.muted, fontSize: 12, fontFamily: "monospace", textAlign: "center" },
   error: { color: tokens.color.danger, fontWeight: "700" },
   primary: {
     backgroundColor: tokens.color.green,

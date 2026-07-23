@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = "https://web-production-13d5b.up.railway.app";
+const API_BASE_URL = "https://web-production-13d5b.up.railway.app";
 
 export type ApiError = {
   code?: string;
@@ -20,7 +20,10 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}, token
     let error: ApiError = { message: `Request failed with ${response.status}` };
     try {
       const body = await response.json();
-      error = { ...error, ...body, message: body.message || body.detail || error.message };
+      const detail = Array.isArray(body.detail)
+        ? body.detail.map((d: { msg?: string }) => d.msg || String(d)).join("; ")
+        : body.detail;
+      error = { ...error, ...body, message: body.message || detail || error.message };
     } catch {}
     throw error;
   }
@@ -34,15 +37,34 @@ export type LoginResponse = {
   token_type: string;
 };
 
-export type DashboardResponse = {
-  account_active: boolean;
-  application_pending: boolean;
-  balance: null | {
-    available?: number;
-    current?: number;
-    currency?: string;
-  };
-  transactions: unknown[];
+// Matches the live backend's POST /auth/register contract exactly —
+// no KYC fields: FAWN accounts are custodial USDC wallets, not bank accounts.
+export type RegisterPayload = {
+  full_name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  is_student: boolean;
+};
+
+export type Me = {
+  id: string;
+  email: string;
+  full_name: string;
+  is_student: boolean;
+  username?: string | null;
+  wallet_initialized: boolean;
+  crypto_wallet_address?: string | null;
+  wallet_type?: string | null;
+  school?: string | null;
+  location?: string | null;
+  military_status?: string | null;
+};
+
+export type WalletBalance = {
+  usdc_balance: number;
+  usdc_balance_cents: number;
+  wallet_address?: string | null;
 };
 
 export function login(email: string, password: string) {
@@ -52,13 +74,29 @@ export function login(email: string, password: string) {
   });
 }
 
-export function register(payload: Record<string, unknown>) {
+export function register(payload: RegisterPayload) {
   return apiFetch<LoginResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
-export function getDashboard(token: string) {
-  return apiFetch<DashboardResponse>("/accounts/dashboard", {}, token);
+export function getMe(token: string) {
+  return apiFetch<Me>("/auth/me", {}, token);
+}
+
+export function updateMe(patch: Partial<Pick<Me, "school" | "location" | "military_status">>, token: string) {
+  return apiFetch<Me>("/auth/me", { method: "PATCH", body: JSON.stringify(patch) }, token);
+}
+
+export function getWalletBalance(token: string) {
+  return apiFetch<WalletBalance>("/wallet/balance", {}, token);
+}
+
+export function createCustodialWallet(token: string) {
+  return apiFetch<{ wallet_address: string }>(
+    "/auth/wallets/create",
+    { method: "POST", body: JSON.stringify({ wallet_type: "fawn_custodial" }) },
+    token
+  );
 }
