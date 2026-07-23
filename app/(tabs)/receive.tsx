@@ -60,7 +60,7 @@ export default function ReceiveScreen() {
     if (!address) return;
     try {
       await Share.share({
-        message: `Send me USDC on Polygon: ${address}${username ? ` (or @${username} inside FAWN)` : ""}`
+        message: `Send me native USDC on Polygon or Base: ${address}${username ? ` (or @${username} inside FAWN)` : ""}`
       });
     } catch {}
   }
@@ -100,13 +100,13 @@ export default function ReceiveScreen() {
             <Text style={styles.address} selectable accessibilityLabel="Your USDC deposit address">
               {address || "…"}
             </Text>
-            <Body>Send USDC on Polygon to this address. Deposits are detected on-chain automatically and usually credit within a minute.</Body>
+            <Body>Send native USDC on Polygon or Base to this address. Deposits are detected on-chain automatically and usually credit within a minute.</Body>
           </Panel>
           <Pressable style={styles.primary} onPress={onShare} disabled={!address} accessibilityRole="button">
             <Text style={styles.primaryText}>Share address</Text>
           </Pressable>
           <View style={styles.warnBox}>
-            <Text style={styles.warnText}>⚠ USDC on Polygon only. Tokens sent on other networks may be unrecoverable.</Text>
+            <Text style={styles.warnText}>⚠ Use native USDC on Polygon or Base only. Tokens sent on other networks may be unrecoverable.</Text>
           </View>
         </>
       )}
