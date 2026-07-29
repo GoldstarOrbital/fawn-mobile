@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 
 import { useAuth } from "@/auth/AuthProvider";
 import {
   createTapCredential,
+  createAppleWalletPass,
   createGoogleWalletPass,
   getClosedLoopCard,
   issueClosedLoopCard,
@@ -94,6 +95,16 @@ export default function CardScreen() {
     finally { setBusy(false); }
   }
 
+  async function addToAppleWallet() {
+    if (!token) return;
+    setBusy(true); setError("");
+    try {
+      const pass = await createAppleWalletPass(token);
+      await Linking.openURL(pass.add_url);
+    } catch (err) { setError(messageOf(err)); }
+    finally { setBusy(false); }
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View><Text style={styles.kicker}>FAWN phone wallet</Text><Title>Balance card.</Title></View>
@@ -129,6 +140,7 @@ export default function CardScreen() {
               <Pressable style={styles.secondary} onPress={toggleFreeze} disabled={busy}><Text style={styles.secondaryText}>{card.status === "frozen" ? "Unfreeze" : "Freeze"}</Text></Pressable>
             </View>
             {card.phone_wallet?.google_wallet_pass_available ? <Pressable style={styles.walletButton} onPress={addToGoogleWallet} disabled={busy}><Text style={styles.secondaryText}>Add visual pass to Google Wallet</Text></Pressable> : null}
+            {Platform.OS === "ios" && card.phone_wallet?.apple_wallet_pass_available ? <Pressable style={styles.walletButton} onPress={addToAppleWallet} disabled={busy}><Text style={styles.secondaryText}>Add visual pass to Apple Wallet</Text></Pressable> : null}
           </Panel>
           <Body>This credential works only inside FAWN-controlled checkout. It is not an Apple Pay, Google Pay, Visa, or Mastercard credential.</Body>
         </>

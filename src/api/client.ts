@@ -82,6 +82,7 @@ export type ClosedLoopCard = {
     dynamic_qr: boolean;
     dynamic_tap_token: boolean;
     google_wallet_pass_available: boolean;
+    apple_wallet_pass_available: boolean;
     smart_tap_enabled: boolean;
   };
 };
@@ -91,6 +92,16 @@ export type GoogleWalletPass = {
   pass_type: "generic";
   add_url: string;
   smart_tap_enabled: false;
+  payment_card: false;
+  note: string;
+};
+
+export type AppleWalletPass = {
+  wallet: "apple_wallet";
+  pass_type: "generic";
+  add_url: string;
+  expires_in_seconds: number;
+  nfc_enabled: false;
   payment_card: false;
   note: string;
 };
@@ -167,6 +178,14 @@ export function createTapCredential(checkoutToken: string, token: string) {
 export function createGoogleWalletPass(token: string) {
   return apiFetch<GoogleWalletPass>(
     "/closed-loop/cards/me/google-wallet",
+    { method: "POST", body: "{}" },
+    token
+  );
+}
+
+export function createAppleWalletPass(token: string) {
+  return apiFetch<AppleWalletPass>(
+    "/closed-loop/cards/me/apple-wallet",
     { method: "POST", body: "{}" },
     token
   );
