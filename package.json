@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "fawn-mobile",
   "version": "0.1.0",
   "private": true,
@@ -13,12 +13,14 @@
   "dependencies": {
     "@tanstack/react-query": "latest",
     "expo": "latest",
-    "expo-router": "latest",
-    "expo-secure-store": "latest",
-    "react": "latest",
+    "expo-router": "~57.0.8",
+    "expo-secure-store": "~57.0.1",
+    "react": "19.2.3",
     "react-native": "latest",
-    "react-native-safe-area-context": "latest",
-    "react-native-screens": "latest"
+    "react-native-qrcode-svg": "^6.3.21",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-svg": "15.15.4"
   },
   "devDependencies": {
     "@types/react": "latest",

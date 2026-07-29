@@ -67,6 +67,45 @@ export type WalletBalance = {
   wallet_address?: string | null;
 };
 
+export type ClosedLoopCard = {
+  id: string;
+  public_id: string;
+  last_four: string;
+  status: "active" | "frozen" | "closed";
+  card_type: "fawn_closed_loop_balance";
+  network: "FAWN";
+  per_transaction_limit_cents: number;
+  daily_limit_cents: number;
+  issued_at?: string | null;
+  phone_wallet?: {
+    fawn_app: boolean;
+    dynamic_qr: boolean;
+    dynamic_tap_token: boolean;
+    google_wallet_pass_available: boolean;
+    smart_tap_enabled: boolean;
+  };
+};
+
+export type GoogleWalletPass = {
+  wallet: "google_wallet";
+  pass_type: "generic";
+  add_url: string;
+  smart_tap_enabled: false;
+  payment_card: false;
+  note: string;
+};
+
+export type TapCredential = {
+  tap_token: string;
+  tap_payload: string;
+  qr_payload: string;
+  expires_at: string;
+  single_use: true;
+  merchant_name: string;
+  amount_cents: number;
+  payer_total_cents: number;
+};
+
 export function login(email: string, password: string) {
   return apiFetch<LoginResponse>("/auth/login", {
     method: "POST",
@@ -97,6 +136,38 @@ export function createCustodialWallet(token: string) {
   return apiFetch<{ wallet_address: string }>(
     "/auth/wallets/create",
     { method: "POST", body: JSON.stringify({ wallet_type: "fawn_custodial" }) },
+    token
+  );
+}
+
+export function getClosedLoopCard(token: string) {
+  return apiFetch<ClosedLoopCard>("/closed-loop/cards/me", {}, token);
+}
+
+export function issueClosedLoopCard(token: string) {
+  return apiFetch<ClosedLoopCard>("/closed-loop/cards", { method: "POST", body: "{}" }, token);
+}
+
+export function updateClosedLoopCard(status: "active" | "frozen", token: string) {
+  return apiFetch<ClosedLoopCard>(
+    "/closed-loop/cards/me",
+    { method: "PATCH", body: JSON.stringify({ status }) },
+    token
+  );
+}
+
+export function createTapCredential(checkoutToken: string, token: string) {
+  return apiFetch<TapCredential>(
+    "/closed-loop/cards/me/tap-token",
+    { method: "POST", body: JSON.stringify({ checkout_token: checkoutToken }) },
+    token
+  );
+}
+
+export function createGoogleWalletPass(token: string) {
+  return apiFetch<GoogleWalletPass>(
+    "/closed-loop/cards/me/google-wallet",
+    { method: "POST", body: "{}" },
     token
   );
 }
