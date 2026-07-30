@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.nfc.NfcAdapter
 import android.nfc.tech.IsoDep
+import android.os.SystemClock
 import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -18,7 +19,10 @@ import java.security.spec.ECGenParameterSpec
 import java.util.UUID
 
 class FawnNfcModule : Module() {
+  @Volatile
   private var readerAdapter: NfcAdapter? = null
+  @Volatile
+  private var readerStartedAtMs: Long = 0
 
   override fun definition() = ModuleDefinition {
     Name("FawnNfc")
@@ -71,6 +75,7 @@ class FawnNfcModule : Module() {
       val adapter = NfcAdapter.getDefaultAdapter(activity) ?: error("This device has no NFC adapter")
       require(adapter.isEnabled) { "Turn on NFC before starting the reader" }
       readerAdapter = adapter
+      readerStartedAtMs = SystemClock.elapsedRealtime()
       activity.runOnUiThread {
         adapter.enableReaderMode(
           activity,
@@ -102,6 +107,7 @@ class FawnNfcModule : Module() {
   }
 
   private fun readCredential(tag: android.nfc.Tag, challenge: ByteArray, activity: Activity) {
+    val apduStartedAtMs = SystemClock.elapsedRealtime()
     try {
       val isoDep = IsoDep.get(tag) ?: error("The tapped device does not support ISO-DEP")
       isoDep.use {
@@ -119,13 +125,23 @@ class FawnNfcModule : Module() {
         val signatureLength = buffer.short.toInt() and 0xffff
         require(signatureLength in 64..80 && buffer.remaining() == signatureLength) { "Invalid FAWN NFC signature envelope" }
         val signature = ByteArray(signatureLength).also { buffer.get(it) }
+        val apduRoundTripMs = (SystemClock.elapsedRealtime() - apduStartedAtMs).coerceAtLeast(0)
+        val readerWaitMs = (apduStartedAtMs - readerStartedAtMs).coerceAtLeast(0)
         sendEvent("onHceResponse", mapOf(
           "deviceId" to UUID(most, least).toString(),
           "signatureB64" to Base64.encodeToString(signature, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING),
+          "signatureBytes" to signature.size,
+          "readerWaitMs" to readerWaitMs,
+          "apduRoundTripMs" to apduRoundTripMs,
+          "tagTechnologies" to tag.techList.toList(),
         ))
       }
     } catch (error: Exception) {
-      sendEvent("onHceError", mapOf("message" to (error.message ?: "Could not read FAWN NFC credential")))
+      val readerElapsedMs = if (readerStartedAtMs > 0) (SystemClock.elapsedRealtime() - readerStartedAtMs).coerceAtLeast(0) else 0
+      sendEvent("onHceError", mapOf(
+        "message" to (error.message ?: "Could not read FAWN NFC credential"),
+        "readerElapsedMs" to readerElapsedMs,
+      ))
     } finally {
       stopReader()
     }
@@ -136,6 +152,7 @@ class FawnNfcModule : Module() {
     activity.runOnUiThread {
       readerAdapter?.disableReaderMode(activity)
       readerAdapter = null
+      readerStartedAtMs = 0
     }
   }
 

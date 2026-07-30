@@ -52,9 +52,12 @@ workflow run and install the same build on two NFC-capable Android phones.
 Use one signed-in phone as the merchant terminal and the other as the customer
 card. The customer must issue a FAWN card, enable phone tap, and keep the phone
 unlocked. The merchant creates a checkout of $100 or less and starts the FAWN
-phone reader. Before general availability, a successful physical test must
-confirm the displayed amount, one-cent customer fee, one-cent merchant fee,
-single-use challenge, and final balances.
+phone reader. Turn on **Acceptance evidence** before starting the reader. After
+the tap, the merchant screen records ISO-DEP detection, challenge age, APDU
+round-trip time, signature-envelope validation, backend signature acceptance,
+exact fees, settlement, and an intentional replay rejection. Before general
+availability, every row in that report must read `PASS` and both users must
+confirm their final balances.
 
 ## Next Build Steps
 

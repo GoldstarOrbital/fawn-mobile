@@ -288,7 +288,12 @@ export function authorizeNfcCheckout(
   payload: { device_id: string; challenge_b64: string; signature_b64: string },
   token: string
 ) {
-  return apiFetch<MerchantCheckout & { acceptance_method: "android_hce" }>(
+  return apiFetch<MerchantCheckout & {
+    acceptance_method: "android_hce";
+    payer_balance_cents: number;
+    merchant_balance_cents: number;
+    idempotent_replay: boolean;
+  }>(
     `/closed-loop/merchant/checkouts/${checkoutToken}/nfc-authorize`,
     { method: "POST", body: JSON.stringify(payload) },
     token

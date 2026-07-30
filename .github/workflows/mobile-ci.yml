@@ -2,7 +2,7 @@ name: Mobile CI
 
 on:
   push:
-    branches: [main, agent/fawn-release]
+    branches: [main]
   pull_request:
     branches: [main]
 
