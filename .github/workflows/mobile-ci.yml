@@ -28,6 +28,13 @@ jobs:
       - run: npm audit --audit-level=high
       - name: Generate Android project
         run: npx expo prebuild --platform android --no-install
-      - name: Compile Android Kotlin
+      - name: Build installable Android APK
         working-directory: android
-        run: ./gradlew :app:compileDebugKotlin --no-daemon
+        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Upload Android test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: fawn-android-debug-${{ github.sha }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

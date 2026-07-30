@@ -43,6 +43,19 @@ npx expo start
 dependencies. The automated force fix would downgrade Expo and should not be
 applied without a deliberate Expo SDK version decision.
 
+## Android Phone-Tap Test Build
+
+Every push to `main` packages an installable debug APK in the `Mobile CI`
+workflow. Download the `fawn-android-debug-<commit>` artifact from the completed
+workflow run and install the same build on two NFC-capable Android phones.
+
+Use one signed-in phone as the merchant terminal and the other as the customer
+card. The customer must issue a FAWN card, enable phone tap, and keep the phone
+unlocked. The merchant creates a checkout of $100 or less and starts the FAWN
+phone reader. Before general availability, a successful physical test must
+confirm the displayed amount, one-cent customer fee, one-cent merchant fee,
+single-use challenge, and final balances.
+
 ## Next Build Steps
 
 - Receive screen (wallet address + QR) to match the web app
