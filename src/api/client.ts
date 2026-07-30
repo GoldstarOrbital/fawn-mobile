@@ -117,6 +117,54 @@ export type TapCredential = {
   payer_total_cents: number;
 };
 
+export type NfcDevice = {
+  id: string;
+  card_id: string;
+  device_name: string;
+  platform: "android";
+  status: "active" | "revoked";
+  attestation_status: "unverified" | "verified" | "failed";
+  key_fingerprint: string;
+  hce_aid: string;
+  requires_device_unlock: true;
+  last_used_at?: string | null;
+  created_at?: string | null;
+};
+
+export type MerchantAccount = {
+  id: string;
+  business_name: string;
+  display_name: string;
+  merchant_slug: string;
+  support_email: string;
+  status: "pending_review" | "active" | "suspended" | "rejected";
+  transaction_fee_cents: 1;
+};
+
+export type MerchantCheckout = {
+  id: string;
+  checkout_token: string;
+  merchant_id: string;
+  merchant_name?: string | null;
+  amount_cents: number;
+  user_fee_cents: 1;
+  merchant_fee_cents: 1;
+  payer_total_cents: number;
+  merchant_net_cents?: number | null;
+  status: "open" | "completed" | "cancelled" | "expired" | "refunded";
+  expires_at: string;
+  checkout_url?: string;
+};
+
+export type NfcChallenge = {
+  protocol: "fawn_hce_v1";
+  hce_aid: string;
+  challenge_b64: string;
+  expires_at: string;
+  requires_device_unlock: true;
+  checkout: MerchantCheckout;
+};
+
 export function login(email: string, password: string) {
   return apiFetch<LoginResponse>("/auth/login", {
     method: "POST",
@@ -187,6 +235,62 @@ export function createAppleWalletPass(token: string) {
   return apiFetch<AppleWalletPass>(
     "/closed-loop/cards/me/apple-wallet",
     { method: "POST", body: "{}" },
+    token
+  );
+}
+
+export function listNfcDevices(token: string) {
+  return apiFetch<{ devices: NfcDevice[] }>("/closed-loop/cards/me/nfc-devices", {}, token);
+}
+
+export function registerNfcDevice(deviceName: string, publicKeySpkiB64: string, token: string) {
+  return apiFetch<NfcDevice>(
+    "/closed-loop/cards/me/nfc-devices",
+    { method: "POST", body: JSON.stringify({ device_name: deviceName, public_key_spki_b64: publicKeySpkiB64 }) },
+    token
+  );
+}
+
+export function revokeNfcDevice(deviceId: string, token: string) {
+  return apiFetch<NfcDevice>(`/closed-loop/cards/me/nfc-devices/${deviceId}`, { method: "DELETE" }, token);
+}
+
+export function getMyMerchant(token: string) {
+  return apiFetch<MerchantAccount>("/closed-loop/merchants/me", {}, token);
+}
+
+export function createMerchantAccount(payload: { business_name: string; display_name: string; support_email: string }, token: string) {
+  return apiFetch<MerchantAccount>(
+    "/closed-loop/merchants",
+    { method: "POST", body: JSON.stringify(payload) },
+    token
+  );
+}
+
+export function createMerchantCheckout(amountCents: number, orderReference: string | null, token: string) {
+  return apiFetch<MerchantCheckout>(
+    "/closed-loop/merchant/checkouts",
+    { method: "POST", body: JSON.stringify({ amount_cents: amountCents, order_reference: orderReference }) },
+    token
+  );
+}
+
+export function createNfcChallenge(checkoutToken: string, token: string) {
+  return apiFetch<NfcChallenge>(
+    `/closed-loop/merchant/checkouts/${checkoutToken}/nfc-challenge`,
+    { method: "POST", body: "{}" },
+    token
+  );
+}
+
+export function authorizeNfcCheckout(
+  checkoutToken: string,
+  payload: { device_id: string; challenge_b64: string; signature_b64: string },
+  token: string
+) {
+  return apiFetch<MerchantCheckout & { acceptance_method: "android_hce" }>(
+    `/closed-loop/merchant/checkouts/${checkoutToken}/nfc-authorize`,
+    { method: "POST", body: JSON.stringify(payload) },
     token
   );
 }

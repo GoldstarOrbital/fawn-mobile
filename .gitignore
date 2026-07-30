@@ -2,5 +2,7 @@ node_modules/
 .expo/
 dist/
 build/
+/android/
+/ios/
 *.log
 .DS_Store

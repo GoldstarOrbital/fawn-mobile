@@ -10,6 +10,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fawn.mobile"
     },
+    "android": {
+      "package": "com.fawn.mobile",
+      "versionCode": 1
+    },
     "extra": {
       "apiBaseUrl": "https://web-production-13d5b.up.railway.app"
     },

@@ -18,7 +18,16 @@ jobs:
         with:
           node-version: '20'
           cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - run: npm ci
       - run: npm run typecheck
       - run: npx expo install --check
       - run: npm audit --audit-level=high
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install
+      - name: Compile Android Kotlin
+        working-directory: android
+        run: ./gradlew :app:compileDebugKotlin --no-daemon

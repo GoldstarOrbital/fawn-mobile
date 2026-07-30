@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+  android:description="@string/fawn_hce_service_description"
+  android:requireDeviceUnlock="true">
+  <aid-group
+    android:category="other"
+    android:description="@string/fawn_hce_aid_description">
+    <aid-filter android:name="F04641574E0101" />
+  </aid-group>
+</host-apdu-service>

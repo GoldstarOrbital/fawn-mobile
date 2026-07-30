@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="fawn_hce_service_description">FAWN closed-loop tap credential</string>
+  <string name="fawn_hce_aid_description">FAWN merchant checkout</string>
+</resources>

@@ -9,13 +9,18 @@ import {
   createAppleWalletPass,
   createGoogleWalletPass,
   getClosedLoopCard,
+  listNfcDevices,
+  registerNfcDevice,
+  revokeNfcDevice,
   issueClosedLoopCard,
   updateClosedLoopCard,
   type ClosedLoopCard,
+  type NfcDevice,
   type TapCredential
 } from "@/api/client";
 import { Body, Panel, Title } from "@/components/Primitives";
 import { tokens } from "@/theme/tokens";
+import FawnNfc from "../../modules/fawn-nfc";
 
 function messageOf(error: unknown) {
   return error && typeof error === "object" && "message" in error ? String(error.message) : "Something went wrong.";
@@ -25,6 +30,8 @@ export default function CardScreen() {
   const params = useLocalSearchParams<{ checkout?: string }>();
   const { token } = useAuth();
   const [card, setCard] = useState<ClosedLoopCard | null>(null);
+  const [nfcDevice, setNfcDevice] = useState<NfcDevice | null>(null);
+  const [nfcSupported, setNfcSupported] = useState(false);
   const [tap, setTap] = useState<TapCredential | null>(null);
   const [checkoutInput, setCheckoutInput] = useState("");
   const [loading, setLoading] = useState(true);
@@ -36,7 +43,18 @@ export default function CardScreen() {
     setLoading(true);
     setError("");
     try {
-      setCard(await getClosedLoopCard(token));
+      const loadedCard = await getClosedLoopCard(token);
+      setCard(loadedCard);
+      const supported = Platform.OS === "android" && Boolean(FawnNfc?.isSupported());
+      setNfcSupported(supported);
+      if (supported) {
+        try {
+          const devices = await listNfcDevices(token);
+          setNfcDevice(devices.devices.find((device) => device.status === "active") || null);
+        } catch {
+          setNfcDevice(null);
+        }
+      }
     } catch (err) {
       const message = messageOf(err);
       if (!/404|No FAWN closed-loop card/i.test(message)) setError(message);
@@ -105,6 +123,29 @@ export default function CardScreen() {
     finally { setBusy(false); }
   }
 
+  async function enablePhoneTap() {
+    if (!token || !FawnNfc) return;
+    setBusy(true); setError("");
+    try {
+      const publicKey = await FawnNfc.getOrCreatePublicKeyAsync();
+      const device = await registerNfcDevice(FawnNfc.getDeviceName(), publicKey, token);
+      await FawnNfc.configureDeviceAsync(device.id);
+      setNfcDevice(device);
+    } catch (err) { setError(messageOf(err)); }
+    finally { setBusy(false); }
+  }
+
+  async function disablePhoneTap() {
+    if (!token || !FawnNfc || !nfcDevice) return;
+    setBusy(true); setError("");
+    try {
+      await revokeNfcDevice(nfcDevice.id, token);
+      await FawnNfc.clearDeviceAsync();
+      setNfcDevice(null);
+    } catch (err) { setError(messageOf(err)); }
+    finally { setBusy(false); }
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.screen}>
       <View><Text style={styles.kicker}>FAWN phone wallet</Text><Title>Balance card.</Title></View>
@@ -142,6 +183,14 @@ export default function CardScreen() {
             {card.phone_wallet?.google_wallet_pass_available ? <Pressable style={styles.walletButton} onPress={addToGoogleWallet} disabled={busy}><Text style={styles.secondaryText}>Add visual pass to Google Wallet</Text></Pressable> : null}
             {Platform.OS === "ios" && card.phone_wallet?.apple_wallet_pass_available ? <Pressable style={styles.walletButton} onPress={addToAppleWallet} disabled={busy}><Text style={styles.secondaryText}>Add visual pass to Apple Wallet</Text></Pressable> : null}
           </Panel>
+          {nfcSupported ? <Panel>
+            <Text style={styles.panelTitle}>Tap from this Android phone</Text>
+            <Body>{nfcDevice ? "Phone tap is active. Unlock your phone and hold it to a FAWN merchant reader. Every reader challenge is locked to one merchant, amount, and checkout." : "Create a non-exportable Android device key so this unlocked phone can answer FAWN merchant NFC challenges."}</Body>
+            <Pressable style={nfcDevice ? styles.secondary : styles.primary} onPress={nfcDevice ? disablePhoneTap : enablePhoneTap} disabled={busy}>
+              <Text style={nfcDevice ? styles.secondaryText : styles.primaryText}>{nfcDevice ? "Remove phone tap" : "Enable phone tap"}</Text>
+            </Pressable>
+            {nfcDevice ? <Text style={styles.confirm}>Ready · {nfcDevice.device_name} · key {nfcDevice.key_fingerprint.slice(0, 10)}</Text> : null}
+          </Panel> : Platform.OS === "android" ? <Panel><Text style={styles.panelTitle}>Phone tap needs a FAWN build</Text><Body>Install FAWN’s Android development or production build. Expo Go cannot load the secure NFC module.</Body></Panel> : null}
           <Body>This credential works only inside FAWN-controlled checkout. It is not an Apple Pay, Google Pay, Visa, or Mastercard credential.</Body>
         </>
       )}
